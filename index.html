@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LangChain Dev Chat</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #0d0d10;
+      --surface:    #16161e;
+      --surface2:   #1e1e28;
+      --border:     #2a2a38;
+      --text:       #dde1f0;
+      --dim:        #6e7290;
+      --muted:      #3e4060;
+      --chain:      #818cf8;
+      --prompt:     #fbbf24;
+      --llm:        #34d399;
+      --parser:     #c084fc;
+      --err:        #f87171;
+      --user-bg:    #162236;
+      --user-bd:    #1e4070;
+    }
+
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── TOP BAR ─────────────────────────────────── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 50px;
+      padding: 0 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 10px; }
+    .logo {
+      width: 26px; height: 26px;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px;
+    }
+    .app-name { font-size: 14px; font-weight: 600; }
+    .model-pill {
+      font-size: 11px;
+      font-family: "SF Mono", "Fira Code", monospace;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--dim);
+      padding: 2px 9px;
+      border-radius: 20px;
+    }
+    .status-row { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--dim); }
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #34d399;
+      transition: background 0.3s;
+    }
+    .dot.busy { background: #fbbf24; animation: pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.75)} }
+
+    /* ── MAIN SPLIT ──────────────────────────────── */
+    .main { flex: 1; display: flex; overflow: hidden; }
+
+    /* ── CHAT PANEL (left 57%) ───────────────────── */
+    .chat-panel {
+      width: 57%;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+    }
+    .panel-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--muted);
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    /* messages */
+    .messages {
+      flex: 1; overflow-y: auto;
+      padding: 20px 18px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .messages::-webkit-scrollbar { width: 4px; }
+    .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .empty-chat {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 10px; color: var(--dim);
+    }
+    .empty-chat .bigicon { font-size: 38px; opacity: .35; }
+    .empty-chat h3 { font-size: 15px; font-weight: 500; }
+    .empty-chat p  { font-size: 12px; color: var(--muted); }
+
+    .msg { display: flex; flex-direction: column; gap: 3px; animation: fadeUp .2s ease-out; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(7px)} to{opacity:1;transform:translateY(0)} }
+    .msg.user { align-items: flex-end; }
+    .msg.ai   { align-items: flex-start; }
+
+    .msg-role { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); padding: 0 4px; }
+    .msg-bubble {
+      max-width: 88%; padding: 10px 14px;
+      font-size: 14px; line-height: 1.65; word-break: break-word;
+    }
+    .msg.user .msg-bubble {
+      background: var(--user-bg);
+      border: 1px solid var(--user-bd);
+      color: #b3d4ff;
+      border-radius: 12px 12px 3px 12px;
+    }
+    .msg.ai .msg-bubble {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 12px 12px 12px 3px;
+    }
+    .msg.ai.error .msg-bubble {
+      background: #180808;
+      border-color: var(--err);
+      color: #fca5a5;
+    }
+
+    /* typing dots */
+    .typing {
+      display: flex; align-items: center; gap: 5px;
+      padding: 12px 16px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 12px 12px 12px 3px; width: fit-content;
+    }
+    .tdot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--muted);
+      animation: tdot 1.2s ease-in-out infinite;
+    }
+    .tdot:nth-child(2) { animation-delay: .2s; }
+    .tdot:nth-child(3) { animation-delay: .4s; }
+    @keyframes tdot {
+      0%,60%,100%{transform:translateY(0);background:var(--muted)}
+      30%{transform:translateY(-7px);background:var(--dim)}
+    }
+
+    /* streaming cursor */
+    .cursor {
+      display: inline-block; width: 2px; height: 14px;
+      background: var(--dim); margin-left: 2px; vertical-align: middle;
+      animation: blink .9s infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* input area */
+    .input-wrap {
+      padding: 14px 18px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .input-row { display: flex; gap: 10px; align-items: flex-end; }
+    textarea {
+      flex: 1; resize: none; outline: none;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text);
+      font: inherit; font-size: 14px;
+      padding: 10px 13px; line-height: 1.55;
+      min-height: 44px; max-height: 130px;
+      transition: border-color .2s;
+    }
+    textarea:focus { border-color: #6366f1; }
+    textarea::placeholder { color: var(--muted); }
+    textarea:disabled { opacity: .45; cursor: not-allowed; }
+
+    .send-btn {
+      width: 44px; height: 44px; border-radius: 10px;
+      border: none; background: #6366f1; color: #fff;
+      cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .2s, transform .1s;
+    }
+    .send-btn:hover:not(:disabled) { background: #4f46e5; }
+    .send-btn:active:not(:disabled) { transform: scale(.93); }
+    .send-btn:disabled { opacity: .38; cursor: not-allowed; }
+
+    /* ── LOG PANEL (right) ───────────────────────── */
+    .log-panel { flex: 1; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
+
+    .log-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 14px;
+      display: flex; flex-direction: column; gap: 10px;
+      flex-shrink: 0;
+    }
+    .log-header-top { display: flex; align-items: center; justify-content: space-between; }
+    .log-stats { display: flex; gap: 14px; align-items: center; }
+    .stat { font-size: 11px; color: var(--muted); }
+    .stat b { color: var(--dim); font-family: "SF Mono","Fira Code",monospace; font-weight: 600; }
+    .clear-btn {
+      font-size: 11px; background: none;
+      border: 1px solid var(--border); color: var(--dim);
+      padding: 3px 9px; border-radius: 5px; cursor: pointer;
+      transition: all .2s;
+    }
+    .clear-btn:hover { border-color: var(--dim); color: var(--text); }
+
+    /* pipeline viz */
+    .pipeline {
+      display: flex; align-items: center; gap: 3px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px; padding: 7px 10px;
+      overflow-x: auto;
+    }
+    .pipeline::-webkit-scrollbar { display: none; }
+    .pipe-step {
+      font-size: 10px; font-weight: 600;
+      font-family: "SF Mono","Fira Code",monospace;
+      padding: 3px 9px; border-radius: 5px;
+      border: 1px solid var(--border);
+      color: var(--muted); background: var(--surface2);
+      white-space: nowrap; transition: all .25s;
+    }
+    .pipe-step.active  { color: var(--text); }
+    .pipe-step.done    { opacity: .55; }
+    .pipe-step[data-s="chain"].active  { color: var(--chain);  border-color: var(--chain);  background: #14143a; }
+    .pipe-step[data-s="prompt"].active { color: var(--prompt); border-color: var(--prompt); background: #28190a; }
+    .pipe-step[data-s="llm"].active    { color: var(--llm);    border-color: var(--llm);    background: #071e15; }
+    .pipe-step[data-s="parser"].active { color: var(--parser); border-color: var(--parser); background: #1a0a2e; }
+    .pipe-step[data-s="output"].active { color: #60a5fa;       border-color: #60a5fa;       background: #071428; }
+    .pipe-arrow { color: var(--muted); font-size: 11px; flex-shrink: 0; }
+
+    /* log entries */
+    .log-entries {
+      flex: 1; overflow-y: auto;
+      padding: 10px 12px;
+      display: flex; flex-direction: column; gap: 5px;
+    }
+    .log-entries::-webkit-scrollbar { width: 4px; }
+    .log-entries::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .log-empty {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 8px; color: var(--muted); font-size: 12px;
+    }
+    .log-empty span:first-child { font-size: 26px; opacity: .25; }
+
+    .log-entry {
+      display: flex; gap: 9px;
+      padding: 7px 10px;
+      border-radius: 7px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left-width: 3px;
+      animation: slideIn .15s ease-out;
+    }
+    @keyframes slideIn { from{opacity:0;transform:translateX(8px)} to{opacity:1;transform:translateX(0)} }
+
+    .log-entry[data-lvl="chain"]  { border-left-color: var(--chain); }
+    .log-entry[data-lvl="prompt"] { border-left-color: var(--prompt); }
+    .log-entry[data-lvl="llm"]    { border-left-color: var(--llm); }
+    .log-entry[data-lvl="parser"] { border-left-color: var(--parser); }
+    .log-entry[data-lvl="error"]  { border-left-color: var(--err); background: #120606; }
+    .log-entry[data-lvl="done"]   { border-left-color: #34d399; }
+    .log-entry[data-lvl="stream"] { border-left-color: #374151; background: var(--bg); border-style: dashed; }
+
+    .entry-badge {
+      font-size: 9px; font-weight: 700; letter-spacing: .07em;
+      padding: 2px 5px; border-radius: 4px;
+      text-transform: uppercase; align-self: flex-start; white-space: nowrap; flex-shrink: 0;
+    }
+    .badge-chain  { background: #14143a; color: var(--chain); }
+    .badge-prompt { background: #28190a; color: var(--prompt); }
+    .badge-llm    { background: #071e15; color: var(--llm); }
+    .badge-parser { background: #1a0a2e; color: var(--parser); }
+    .badge-error  { background: #1a0808; color: var(--err); }
+    .badge-done   { background: #071e15; color: #34d399; }
+    .badge-stream { background: var(--surface2); color: var(--dim); }
+
+    .entry-body { flex: 1; min-width: 0; }
+    .entry-title { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.4; }
+    .entry-detail {
+      font-size: 10.5px; color: var(--muted);
+      font-family: "SF Mono","Fira Code",monospace;
+      margin-top: 2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .entry-time {
+      font-size: 10px; color: var(--muted);
+      font-family: "SF Mono","Fira Code",monospace;
+      flex-shrink: 0; line-height: 2;
+    }
+
+    /* token stream bar */
+    .token-bar-wrap {
+      display: flex; align-items: center; gap: 8px;
+      margin-top: 4px;
+    }
+    .token-bar {
+      flex: 1; height: 3px;
+      background: var(--surface2); border-radius: 2px; overflow: hidden;
+    }
+    .token-fill {
+      height: 100%; width: 55%;
+      background: linear-gradient(90deg, var(--llm), var(--chain));
+      border-radius: 2px;
+      animation: flow 1.8s linear infinite;
+      background-size: 200% 100%;
+    }
+    @keyframes flow { 0%{background-position:100%} 100%{background-position:-100%} }
+    .token-num {
+      font-size: 10px; color: var(--llm);
+      font-family: "SF Mono","Fira Code",monospace; flex-shrink: 0;
+    }
+
+    /* chat divider */
+    .chat-divider {
+      display: flex; align-items: center; gap: 8px;
+      margin: 6px 0 2px;
+    }
+    .divider-line { flex: 1; height: 1px; background: var(--border); }
+    .divider-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--dim);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 2px 8px; border-radius: 20px;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo">⚡</div>
+    <span class="app-name">LangChain Dev Chat</span>
+    <span class="model-pill">llama-3.1-8b · groq</span>
+  </div>
+  <div class="status-row">
+    <div class="dot" id="dot"></div>
+    <span id="statusTxt">Ready</span>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- LEFT: CHAT -->
+  <div class="chat-panel">
+    <div class="panel-label">Chat</div>
+    <div class="messages" id="messages">
+      <div class="empty-chat" id="emptyChat">
+        <div class="bigicon">💬</div>
+        <h3>Start a conversation</h3>
+        <p>Ask anything — LangChain traces stream live on the right</p>
+      </div>
+    </div>
+    <div class="input-wrap">
+      <div class="input-row">
+        <textarea id="input" placeholder="Ask something…" rows="1"></textarea>
+        <button class="send-btn" id="sendBtn" title="Send  (Enter)">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: LOGS -->
+  <div class="log-panel">
+    <div class="log-header">
+      <div class="log-header-top">
+        <div class="panel-label" style="padding:0;border:0;background:none">LangChain Trace</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="log-stats">
+            <div class="stat">tokens: <b id="tokTotal">—</b></div>
+            <div class="stat">time: <b id="elapsed">—</b></div>
+          </div>
+          <button class="clear-btn" id="clearBtn">Clear</button>
+        </div>
+      </div>
+      <div class="pipeline">
+        <div class="pipe-step" data-s="chain"  id="ps-chain">⛓ Chain</div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step" data-s="prompt" id="ps-prompt">📝 Prompt</div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step" data-s="llm"    id="ps-llm">🤖 LLM</div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step" data-s="parser" id="ps-parser">✂ Parser</div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step" data-s="output" id="ps-output">📤 Output</div>
+      </div>
+    </div>
+
+    <div class="log-entries" id="logEntries">
+      <div class="log-empty" id="logEmpty">
+        <span>🔍</span>
+        <span>Execution traces appear here</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const input    = $('input');
+  const sendBtn  = $('sendBtn');
+  const messages = $('messages');
+  const logList  = $('logEntries');
+  const dot      = $('dot');
+  const statusTxt = $('statusTxt');
+  const tokTotal = $('tokTotal');
+  const elapsed  = $('elapsed');
+  const emptyChat = $('emptyChat');
+  const logEmpty  = $('logEmpty');
+
+  let busy        = false;
+  let t0          = null;
+  let ticker      = null;
+  let streamEntry = null;
+  let streamCount = 0;
+  let aiBubble    = null;
+  let chatNum     = 0;
+
+  // ── auto-resize textarea
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 130) + 'px';
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!busy) go(); }
+  });
+  sendBtn.addEventListener('click', () => { if (!busy) go(); });
+  $('clearBtn').addEventListener('click', clearLogs);
+
+  function setStatus(state) {
+    dot.className = 'dot' + (state !== 'ready' ? ' busy' : '');
+    statusTxt.textContent = state === 'ready' ? 'Ready' : state === 'thinking' ? 'Thinking…' : 'Streaming';
+  }
+
+  function pipeSet(step, cls) {
+    const el = $(`ps-${step}`);
+    if (el) el.className = 'pipe-step ' + cls;
+  }
+  function pipeReset() {
+    ['chain','prompt','llm','parser','output'].forEach(s => pipeSet(s, ''));
+  }
+
+  function startTimer() {
+    t0 = Date.now();
+    ticker = setInterval(() => {
+      elapsed.textContent = ((Date.now() - t0) / 1000).toFixed(1) + 's';
+    }, 100);
+  }
+  function stopTimer() { clearInterval(ticker); }
+
+  function scrollBot(el) { el.scrollTop = el.scrollHeight; }
+
+  function esc(t) {
+    const d = document.createElement('div');
+    d.textContent = t;
+    return d.innerHTML;
+  }
+
+  function relMs() {
+    return t0 ? '+' + (Date.now() - t0) + 'ms' : '';
+  }
+
+  // ── chat helpers
+  function addUser(text) {
+    emptyChat.style.display = 'none';
+    const d = document.createElement('div');
+    d.className = 'msg user';
+    d.innerHTML = `<div class="msg-role">You</div>
+                   <div class="msg-bubble">${esc(text)}</div>`;
+    messages.appendChild(d);
+    scrollBot(messages);
+  }
+
+  function showTyping() {
+    const d = document.createElement('div');
+    d.className = 'msg ai'; d.id = 'typing';
+    d.innerHTML = `<div class="msg-role">AI</div>
+                   <div class="typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>`;
+    messages.appendChild(d);
+    scrollBot(messages);
+  }
+  function hideTyping() { const el = $('typing'); if (el) el.remove(); }
+
+  function startAI() {
+    hideTyping();
+    const d = document.createElement('div');
+    d.className = 'msg ai';
+    d.innerHTML = `<div class="msg-role">AI</div>
+                   <div class="msg-bubble"><span class="cursor"></span></div>`;
+    messages.appendChild(d);
+    aiBubble = d.querySelector('.msg-bubble');
+    scrollBot(messages);
+  }
+
+  function appendTok(tok) {
+    if (!aiBubble) startAI();
+    const cur = aiBubble.querySelector('.cursor');
+    if (cur) cur.insertAdjacentText('beforebegin', tok);
+    else aiBubble.textContent += tok;
+    scrollBot(messages);
+    streamCount++;
+    if (streamEntry) {
+      streamEntry.querySelector('.token-num').textContent = streamCount + ' tokens';
+    }
+  }
+
+  function finalizeAI() {
+    if (aiBubble) {
+      const cur = aiBubble.querySelector('.cursor');
+      if (cur) cur.remove();
+      aiBubble = null;
+    }
+  }
+
+  function addErrMsg(msg) {
+    hideTyping();
+    const d = document.createElement('div');
+    d.className = 'msg ai error';
+    d.innerHTML = `<div class="msg-role" style="color:var(--err)">Error</div>
+                   <div class="msg-bubble">${esc(msg)}</div>`;
+    messages.appendChild(d);
+    scrollBot(messages);
+  }
+
+  // ── log helpers
+  function addChatDivider(n) {
+    logEmpty.style.display = 'none';
+    const d = document.createElement('div');
+    d.className = 'chat-divider';
+    d.innerHTML = `<span class="divider-line"></span>
+                   <span class="divider-label">Chat ${n}</span>
+                   <span class="divider-line"></span>`;
+    logList.appendChild(d);
+    scrollBot(logList);
+  }
+
+  function clearLogs() {
+    logList.innerHTML = '';
+    logList.appendChild(logEmpty);
+    logEmpty.style.display = 'flex';
+    tokTotal.textContent = '—';
+    elapsed.textContent  = '—';
+    chatNum = 0;
+    pipeReset();
+  }
+
+  const BADGE = {
+    chain: 'badge-chain', prompt: 'badge-prompt',
+    llm: 'badge-llm', parser: 'badge-parser',
+    error: 'badge-error', done: 'badge-done', stream: 'badge-stream'
+  };
+  const LABEL = {
+    chain: 'chain', prompt: 'prompt', llm: 'llm',
+    parser: 'parser', error: 'error', done: 'done', stream: 'stream'
+  };
+
+  function addLog(lvl, title, detail) {
+    logEmpty.style.display = 'none';
+    const e = document.createElement('div');
+    e.className = 'log-entry'; e.setAttribute('data-lvl', lvl);
+    e.innerHTML = `
+      <div class="entry-badge ${BADGE[lvl] || 'badge-stream'}">${LABEL[lvl] || lvl}</div>
+      <div class="entry-body">
+        <div class="entry-title">${esc(title)}</div>
+        ${detail ? `<div class="entry-detail">${esc(detail)}</div>` : ''}
+      </div>
+      <div class="entry-time">${relMs()}</div>`;
+    logList.appendChild(e);
+    scrollBot(logList);
+    return e;
+  }
+
+  function addStreamEntry() {
+    logEmpty.style.display = 'none';
+    streamEntry = document.createElement('div');
+    streamEntry.className = 'log-entry'; streamEntry.setAttribute('data-lvl', 'stream');
+    streamEntry.innerHTML = `
+      <div class="entry-badge badge-stream">stream</div>
+      <div class="entry-body">
+        <div class="entry-title">Streaming tokens</div>
+        <div class="token-bar-wrap">
+          <div class="token-bar"><div class="token-fill"></div></div>
+          <div class="token-num">0 tokens</div>
+        </div>
+      </div>
+      <div class="entry-time">${relMs()}</div>`;
+    logList.appendChild(streamEntry);
+    scrollBot(logList);
+  }
+
+  function finalizeStreamEntry() {
+    if (streamEntry) {
+      const fill = streamEntry.querySelector('.token-fill');
+      if (fill) fill.style.animation = 'none';
+      streamEntry = null;
+    }
+  }
+
+  // ── pipeline state machine
+  function handlePipeline(ev) {
+    const { event: kind, level, title } = ev;
+    if (!kind) return;
+    if (kind === 'on_chain_start') {
+      if (title.includes('Pipeline'))       pipeSet('chain',  'active');
+      else if (title.includes('Formatting')) pipeSet('prompt', 'active');
+      else if (title.includes('Parsing'))   pipeSet('parser', 'active');
+    }
+    if (kind === 'on_chain_end') {
+      if (title.includes('Pipeline')) { pipeSet('chain', 'done'); pipeSet('output', 'active'); }
+      else if (title.includes('Prompt'))  pipeSet('prompt', 'done');
+      else if (title.includes('parsed'))  pipeSet('parser', 'done');
+    }
+    if (kind === 'on_chat_model_start') pipeSet('llm', 'active');
+    if (kind === 'on_chat_model_end')   pipeSet('llm', 'done');
+  }
+
+  // ── main send
+  async function go() {
+    const msg = input.value.trim();
+    if (!msg) return;
+
+    input.value = '';
+    input.style.height = 'auto';
+    input.disabled = true;
+    sendBtn.disabled = true;
+    busy = true;
+    streamCount = 0;
+    streamEntry = null;
+    aiBubble = null;
+
+    chatNum++;
+    addUser(msg);
+    showTyping();
+    setStatus('thinking');
+    startTimer();
+    pipeReset();
+    addChatDivider(chatNum);
+    pipeSet('chain', 'active');
+
+    let streaming = false;
+
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg })
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop(); // keep partial last line
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          let d;
+          try { d = JSON.parse(line.slice(6)); } catch { continue; }
+
+          if (d.type === 'log') {
+            addLog(d.level, d.title, d.detail);
+            handlePipeline(d);
+            if (d.event === 'on_chat_model_start') setStatus('thinking');
+            if (d.event === 'on_chat_model_end' && d.tokens?.total) {
+              tokTotal.textContent = d.tokens.total;
+            }
+          }
+
+          else if (d.type === 'token') {
+            if (!streaming) {
+              streaming = true;
+              setStatus('streaming');
+              addStreamEntry();
+              startAI();
+            }
+            appendTok(d.content);
+          }
+
+          else if (d.type === 'done') {
+            finalizeAI();
+            finalizeStreamEntry();
+            stopTimer();
+            pipeSet('output', 'done');
+            addLog('done', 'Complete', `${streamCount} tokens streamed  ·  ${elapsed.textContent}`);
+            setStatus('ready');
+          }
+
+          else if (d.type === 'error') {
+            finalizeStreamEntry();
+            stopTimer();
+            hideTyping();
+            addLog('error', 'Error', d.message);
+            addErrMsg(d.message);
+            setStatus('ready');
+          }
+        }
+      }
+    } catch (err) {
+      hideTyping();
+      finalizeStreamEntry();
+      stopTimer();
+      addLog('error', 'Connection error', err.message);
+      addErrMsg(err.message);
+      setStatus('ready');
+    } finally {
+      input.disabled = false;
+      sendBtn.disabled = false;
+      busy = false;
+      input.focus();
+    }
+  }
+</script>
+</body>
+</html>
