@@ -1,6 +1,6 @@
+import os
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
-from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
@@ -12,8 +12,11 @@ prompt = ChatPromptTemplate.from_messages([
     ("user", "{question}")
 ])
 
-# 2. Connect to OpenAI
-llm = ChatGroq(model="llama-3.1-8b-instant")
+# 2. Connect to Google Gemini
+llm = ChatGoogleGenerativeAI(
+    model="gemini-3.1-flash-lite",
+    google_api_key=os.environ["GEMINI_API_KEY"],
+)
 
 # 3. Build the chain
 chain = prompt | llm | StrOutputParser()

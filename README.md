@@ -6,7 +6,7 @@ A local AI development environment with a split-panel web UI — chat with an LL
 
 | Layer | Tool |
 |---|---|
-| LLM | LLaMA 3.1 8B Instant via [Groq](https://console.groq.com) |
+| LLM | Gemini 3.1 Flash Lite via [Google AI Studio](https://aistudio.google.com/apikey) |
 | Framework | [LangChain](https://python.langchain.com) |
 | Observability | [LangSmith](https://smith.langchain.com) |
 | Backend | FastAPI + uvicorn |
@@ -46,7 +46,7 @@ source venv/bin/activate
 ### 3. Install dependencies
 
 ```bash
-pip install langchain langchain-groq langchain-core langsmith fastapi uvicorn python-dotenv
+pip install langchain langchain-google-genai langchain-core langsmith fastapi uvicorn python-dotenv
 ```
 
 ### 4. Configure environment variables
@@ -54,13 +54,13 @@ pip install langchain langchain-groq langchain-core langsmith fastapi uvicorn py
 Create a `.env` file (copy the template below):
 
 ```env
-GROQ_API_KEY=your_groq_api_key
+GEMINI_API_KEY=your_gemini_api_key
 LANGCHAIN_API_KEY=your_langsmith_api_key
 LANGCHAIN_TRACING_V2=true
 LANGCHAIN_PROJECT=my-langchain-app
 ```
 
-- Get a Groq key → https://console.groq.com
+- Get a Gemini key → https://aistudio.google.com/apikey
 - Get a LangSmith key → https://smith.langchain.com
 
 ## Running
@@ -90,7 +90,7 @@ Runs a single hardcoded question through the chain and prints the response to th
 The chain is a simple LangChain pipeline:
 
 ```
-ChatPromptTemplate  →  ChatGroq (LLaMA 3.1 8B)  →  StrOutputParser
+ChatPromptTemplate  →  ChatGoogleGenerativeAI (Gemini 3.1 Flash Lite)  →  StrOutputParser
 ```
 
 `server.py` uses `astream_events` (LangChain v2) to stream every internal event — prompt formatting, LLM call, token chunks, parser output — as Server-Sent Events to the browser in real time.

@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
@@ -20,7 +20,10 @@ prompt_template = ChatPromptTemplate.from_messages([
     ("system", "You are a helpful assistant."),
     ("human", "{question}"),
 ])
-llm = ChatGroq(model="llama-3.1-8b-instant")
+llm = ChatGoogleGenerativeAI(
+    model="gemini-3.1-flash-lite",
+    google_api_key=os.environ["GEMINI_API_KEY"],
+)
 chain = prompt_template | llm | StrOutputParser()
 
 
@@ -83,7 +86,7 @@ async def chat(req: ChatRequest):
                     inp = data.get("input", {})
                     msg_count = sum(len(m) for m in inp.get("messages", []))
                     payload = log_event("llm", f"LLM request → {name}", kind,
-                                        f"llama-3.1-8b-instant via Groq  ·  {msg_count} message(s)")
+                                        f"gemini-3.1-flash-lite via Google  ·  {msg_count} message(s)")
 
                 elif kind == "on_chat_model_stream":
                     chunk = data.get("chunk")
