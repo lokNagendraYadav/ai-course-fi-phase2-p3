@@ -29,7 +29,9 @@ chain = prompt_template | llm | StrOutputParser()
 
 @app.get("/")
 async def frontend():
-    return HTMLResponse(Path("index.html").read_text(encoding="utf-8"))
+    # Absolute path so it resolves regardless of the process working directory
+    # (e.g. on Vercel serverless, where cwd is not the app folder).
+    return HTMLResponse((Path(__file__).parent / "index.html").read_text(encoding="utf-8"))
 
 
 class ChatRequest(BaseModel):
@@ -91,7 +93,18 @@ async def chat(req: ChatRequest):
                 elif kind == "on_chat_model_stream":
                     chunk = data.get("chunk")
                     if chunk and hasattr(chunk, "content") and chunk.content:
-                        payload = {"type": "token", "content": chunk.content}
+                        content = chunk.content
+                        # Gemini (langchain_google_genai) streams content as a
+                        # list of block dicts; Groq streamed plain strings.
+                        # Normalise to a plain string so the UI renders text.
+                        if isinstance(content, list):
+                            content = "".join(
+                                part.get("text", "")
+                                for part in content
+                                if isinstance(part, dict)
+                            )
+                        if content:
+                            payload = {"type": "token", "content": content}
 
                 elif kind == "on_chat_model_end":
                     out = data.get("output")
